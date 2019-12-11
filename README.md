@@ -9,6 +9,9 @@ and this repo is the result. I wrote it without explicitly cheating with the vid
 watched it recently I remembered the data structure, and followed the types for the comonad
 instance.
 
+There's really only one source file here: [Comonad.scala](src/main/scala/sumidiot/golf/Comonad.scala).
+It extends `App` so you can `run-main sumidiot.golf.Comonad` from `sbt`.
+
 ### Neighborhoods
 
 Part of my interest was in seeing how the "evaluate neighborhood" step really worked. In my version
