@@ -34,7 +34,7 @@ object Comonad extends App {
           // i can make a bunch of pointedgrids by moving the pt around in the pg
           // and applying f to each
           Vector.tabulate(pg.grid.size, pg.grid(0).size) { case pt =>
-            f(pg.copy(pt = pt))
+            f(PointedGrid.refocus(pg)(pt))
           }
         )
     }
