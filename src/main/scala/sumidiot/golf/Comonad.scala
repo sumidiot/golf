@@ -13,9 +13,10 @@ import scala.util.Random
  *   - Neighbors makes you able to refocus on your neighbors
  *   - EvolutionRule handles the count-based logic for if a cell evolves
  *
- * See issue #2 around questions about what you'd want to do if you wanted the grid to _not_
- * wrap, which is somewhat related to this question of responsibility - extract forced us
- * to make things wrap, because our implementation of Neighbors didn't check boundaries.
+ * Relative to the first version of this Neighbors-based approach, this version makes the
+ * Neighbors implementation entirely responsible for the grid shape, to include whether it
+ * wraps or not. We let `extract` assume that it will always work, vs worrying if the `pt`
+ * is outside the `grid`.
  */
 object Comonad extends App {
 
@@ -27,6 +28,9 @@ object Comonad extends App {
   object PointedGrid {
     def refocus[T](pg: PointedGrid[T])(p: (Int, Int)): PointedGrid[T] =
       pg.copy(pt = p)
+
+    def dimensions[T](pg: PointedGrid[T]): (Int, Int) =
+      (pg.grid.size, pg.grid(0).size)
   }
 
   implicit val pointedGridIsComonad: Comonad[PointedGrid] =
@@ -36,7 +40,7 @@ object Comonad extends App {
 
       override def extract[T](pg: PointedGrid[T]): T = {
         val (r, c) = pg.pt
-        pg.grid(Math.floorMod(r, pg.grid.size))(Math.floorMod(c, pg.grid(0).size))
+        pg.grid(r)(c)
       }
 
       override def coflatMap[A, B](pg: PointedGrid[A])(f: PointedGrid[A] => B): PointedGrid[B] =
@@ -55,13 +59,38 @@ object Comonad extends App {
     def neighbors[T](f: F[T]): Iterable[F[T]]
   }
 
-  implicit val PointedGridHasNeighbors: Neighbors[PointedGrid] =
+  val PointedGridHasWrappingNeighbors: Neighbors[PointedGrid] =
     new Neighbors[PointedGrid] {
     
       override def neighbors[T](pg: PointedGrid[T]): List[PointedGrid[T]] =
-        nbrCoords(pg.pt).map(PointedGrid.refocus(pg))
+        nbrCoords(PointedGrid.dimensions(pg))(pg.pt).map(PointedGrid.refocus(pg))
 
-      def nbrCoords(x: Int, y: Int): List[(Int, Int)] =
+      def nbrCoords(mm: (Int, Int))(xy: (Int, Int)): List[(Int, Int)] = {
+        val (x, y) = xy
+        val (maxX, maxY) = mm
+        List(
+          (Math.floorMod(x - 1, maxX), Math.floorMod(y - 1, maxY)),
+          (Math.floorMod(x    , maxX), Math.floorMod(y - 1, maxY)),
+          (Math.floorMod(x + 1, maxX), Math.floorMod(y - 1, maxY)),
+          (Math.floorMod(x - 1, maxX), Math.floorMod(y    , maxY)),
+          (Math.floorMod(x + 1, maxX), Math.floorMod(y    , maxY)),
+          (Math.floorMod(x - 1, maxX), Math.floorMod(y + 1, maxY)),
+          (Math.floorMod(x    , maxX), Math.floorMod(y + 1, maxY)),
+          (Math.floorMod(x + 1, maxX), Math.floorMod(y + 1, maxY))
+          )
+      }
+    
+    }
+  
+  implicit val PointedGridHasNonWrappingNeighbors: Neighbors[PointedGrid] =
+    new Neighbors[PointedGrid] {
+    
+      override def neighbors[T](pg: PointedGrid[T]): List[PointedGrid[T]] =
+        nbrCoords(PointedGrid.dimensions(pg))(pg.pt).map(PointedGrid.refocus(pg))
+
+      def nbrCoords(mm: (Int, Int))(xy: (Int, Int)): List[(Int, Int)] = {
+        val (x, y) = xy
+        val (maxX, maxY) = mm
         List(
           (x - 1, y - 1),
           (x    , y - 1),
@@ -72,10 +101,10 @@ object Comonad extends App {
           (x    , y + 1),
           (x + 1, y + 1)
           )
+            .filter { case (x, y) =>
+              x >= 0 && y >= 0 && x < maxX && y < maxY }
+      }
     
-      def nbrCoords(xy: (Int, Int)): List[(Int, Int)] =
-        nbrCoords(xy._1, xy._2)
-
     }
 
 
@@ -108,9 +137,9 @@ object Comonad extends App {
       println(row.map(b => if (b) "X" else ".").mkString)
     }
 
-  def randomLife(rows: Int, cols: Int): LifeGrid =
+  def randomLife(rows: Int, cols: Int, pct: Float): LifeGrid =
     Vector.tabulate(rows, cols) { case _ =>
-      Random.nextBoolean
+      Random.nextFloat < pct
     }
 
   val blinker: LifeGrid =
@@ -159,5 +188,16 @@ object Comonad extends App {
   showLife(lifeStep(loaf))
   println("")
   showLife(lifeStep(lifeStep(loaf)))
+
+  println("")
+  val r1 = randomLife(10, 20, 0.2f)
+  showLife(r1)
+  println("")
+  val r2 = lifeStep(r1)
+  showLife(r2)
+  println("")
+  val r3 = lifeStep(r2)
+  showLife(r3)
+  println("")
 
 }
