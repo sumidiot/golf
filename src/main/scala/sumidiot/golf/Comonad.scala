@@ -1,7 +1,6 @@
 package sumidiot.golf
 
 import cats._
-import cats.data._
 import cats.implicits._
 import scala.util.Random
 
@@ -39,11 +38,38 @@ object Comonad extends App {
         )
     }
   
+  trait Neighbors[F[_]] {
+    def neighbors[T](f: F[T]): Iterable[F[T]]
+  }
+
+  implicit val PointedGridHasNeighbors: Neighbors[PointedGrid] =
+    new Neighbors[PointedGrid] {
+    
+      override def neighbors[T](pg: PointedGrid[T]): List[PointedGrid[T]] =
+        nbrCoords(pg.pt).map(PointedGrid.refocus(pg))
+
+      def nbrCoords(x: Int, y: Int): List[(Int, Int)] =
+        List(
+          (x - 1, y - 1),
+          (x    , y - 1),
+          (x + 1, y - 1),
+          (x - 1, y    ),
+          (x + 1, y    ),
+          (x - 1, y + 1),
+          (x    , y + 1),
+          (x + 1, y + 1)
+          )
+    
+      def nbrCoords(xy: (Int, Int)): List[(Int, Int)] =
+        nbrCoords(xy._1, xy._2)
+
+    }
+  
   
   type LifeGrid = Vector[Vector[Boolean]]
 
   def lifeStep(grid: LifeGrid): LifeGrid =
-    PointedGrid((0, 0), grid).coflatMap(lifeStep).grid
+    PointedGrid((0, 0), grid).coflatMap(lifeStep[PointedGrid]).grid
 
   def alive(aliveAlready: Boolean, aliveNeighbors: Int): Boolean =
     if (aliveAlready) {
@@ -52,23 +78,9 @@ object Comonad extends App {
       aliveNeighbors == 3
     }
 
-  def nbrCoords(x: Int, y: Int): List[(Int, Int)] =
-    List(
-      (x - 1, y - 1),
-      (x    , y - 1),
-      (x + 1, y - 1),
-      (x - 1, y    ),
-      (x + 1, y    ),
-      (x - 1, y + 1),
-      (x    , y + 1),
-      (x + 1, y + 1)
-      )
 
-  def nbrCoords(xy: (Int, Int)): List[(Int, Int)] =
-    nbrCoords(xy._1, xy._2)
-
-  def lifeStep(pg: PointedGrid[Boolean]): Boolean =
-    alive(pg.extract, nbrCoords(pg.pt).map(p => PointedGrid.refocus(pg)(p).extract).count(x => x))
+  def lifeStep[F[_]](pg: F[Boolean])(implicit cev: Comonad[F], nev: Neighbors[F]): Boolean =
+    alive(cev.extract(pg), nev.neighbors(pg).count(_.extract))
 
 
   def showLife(lg: LifeGrid): Unit =
