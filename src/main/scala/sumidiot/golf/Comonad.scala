@@ -4,6 +4,19 @@ import cats._
 import cats.implicits._
 import scala.util.Random
 
+/**
+ * In this version of the app, we tear apart the concerns in some way that seems reasonable.
+ * This seems to roughly fall out as:
+ *   - PointedGrid.refocus lets us set the pointer location
+ *   - Comonad.extract gives us the grid access
+ *   - Comonad.coflatMap handles iteration across the grid
+ *   - Neighbors makes you able to refocus on your neighbors
+ *   - EvolutionRule handles the count-based logic for if a cell evolves
+ *
+ * See issue #2 around questions about what you'd want to do if you wanted the grid to _not_
+ * wrap, which is somewhat related to this question of responsibility - extract forced us
+ * to make things wrap, because our implementation of Neighbors didn't check boundaries.
+ */
 object Comonad extends App {
 
   case class PointedGrid[T](
