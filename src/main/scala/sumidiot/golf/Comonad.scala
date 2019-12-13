@@ -64,24 +64,29 @@ object Comonad extends App {
         nbrCoords(xy._1, xy._2)
 
     }
-  
-  
+
+
+  type EvolutionRule = (Boolean, Int) => Boolean
+
+  val defaultEvolutionRule: (Boolean, Int) => Boolean =
+    (aliveAlready: Boolean, aliveNeighbors: Int) =>
+      if (aliveAlready) {
+        (aliveNeighbors == 2) || (aliveNeighbors == 3)
+      } else {
+        aliveNeighbors == 3
+      }
+ 
+
+  def lifeStep[F[_] : Comonad : Neighbors](evolves: EvolutionRule)(pg: F[Boolean]): F[Boolean] =
+    pg.coflatMap(cellLifeStep[F](evolves))
+
+  def cellLifeStep[F[_]](evolves: EvolutionRule)(pg: F[Boolean])(implicit cev: Comonad[F], nev: Neighbors[F]): Boolean =
+    evolves(cev.extract(pg), nev.neighbors(pg).count(_.extract))
+
   type LifeGrid = Vector[Vector[Boolean]]
 
   def lifeStep(grid: LifeGrid): LifeGrid =
-    PointedGrid((0, 0), grid).coflatMap(lifeStep[PointedGrid]).grid
-
-  def alive(aliveAlready: Boolean, aliveNeighbors: Int): Boolean =
-    if (aliveAlready) {
-      (aliveNeighbors == 2) || (aliveNeighbors == 3)
-    } else {
-      aliveNeighbors == 3
-    }
-
-
-  def lifeStep[F[_]](pg: F[Boolean])(implicit cev: Comonad[F], nev: Neighbors[F]): Boolean =
-    alive(cev.extract(pg), nev.neighbors(pg).count(_.extract))
-
+    lifeStep(defaultEvolutionRule)(PointedGrid((0, 0), grid)).grid
 
   def showLife(lg: LifeGrid): Unit =
     for {
